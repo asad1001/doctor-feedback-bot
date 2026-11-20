@@ -3,8 +3,11 @@
 Run:  python -m dashboard        then open http://localhost:8000
 """
 
+import asyncio
 import hmac
 import io
+import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
@@ -14,19 +17,39 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Stre
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from sqlalchemy import func, select
+from aiogram.types import Update
 from starlette.middleware.sessions import SessionMiddleware
 
 from bot.config import BASE_DIR, settings
 from bot.db import Response, Session, init_db
+from bot.runtime import WEBHOOK_PATH, create_bot, public_url, webhook_secret
 
 from . import analytics as an
 
 STATIC = Path(__file__).parent / "static"
 
+log = logging.getLogger("dashboard")
+
+
 @asynccontextmanager
-async def lifespan(_app):
+async def lifespan(app_: FastAPI):
     await init_db()
+    app_.state.bot = None
+    url = public_url()
+    if settings.bot_token and url:
+        # Server mode: Telegram delivers updates to this web service.
+        bot, dp = create_bot()
+        await bot.set_webhook(url + WEBHOOK_PATH, secret_token=webhook_secret(),
+                              allowed_updates=dp.resolve_used_update_types())
+        app_.state.bot, app_.state.dp, app_.state.tasks = bot, dp, set()
+        log.info("Telegram webhook set to %s%s", url, WEBHOOK_PATH)
+    elif settings.bot_token:
+        log.info("No PUBLIC_URL/RENDER_EXTERNAL_URL: bot not started here (run `python -m bot` locally).")
     yield
+    if app_.state.bot:
+        # Do not delete the webhook here: during a redeploy the new instance
+        # has already set it, and deleting it would switch the bot off.
+        await app_.state.bot.session.close()
 
 
 app = FastAPI(title="Doctor feedback dashboard", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -35,8 +58,28 @@ app.add_middleware(
     secret_key=settings.dashboard_secret or (settings.anon_salt + ":dashboard"),
     max_age=12 * 3600,
     same_site="strict",
-    https_only=False,  # set True once the dashboard is served over HTTPS
+    https_only=bool(os.getenv("RENDER") or os.getenv("HTTPS_ONLY")),  # secure cookies on https servers
 )
+
+
+@app.post(WEBHOOK_PATH, include_in_schema=False)
+async def telegram_webhook(request: Request):
+    bot = request.app.state.bot
+    if bot is None or not hmac.compare_digest(
+        request.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), webhook_secret()
+    ):
+        raise HTTPException(status_code=403)
+    update = Update.model_validate(await request.json(), context={"bot": bot})
+    # Answer Telegram immediately; handle the update in the background.
+    task = asyncio.create_task(request.app.state.dp.feed_update(bot, update))
+    request.app.state.tasks.add(task)
+    task.add_done_callback(request.app.state.tasks.discard)
+    return {"ok": True}
+
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz():
+    return {"ok": True}
 
 
 # ------------------------------------------------------------------ auth

@@ -12,5 +12,5 @@ itsdangerous>=2.1
 python-multipart>=0.0.9
 openpyxl>=3.1
 
-# For PostgreSQL instead of SQLite, also install:
-# asyncpg>=0.29
+# PostgreSQL (used when DATABASE_URL points to Postgres, e.g. on Render)
+asyncpg>=0.29

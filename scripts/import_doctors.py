@@ -4,7 +4,7 @@
 
 CSV columns (first row = header):
     last_name, first_name, patronymic, specialty_uz, specialty_ru, specialty_en,
-    department, room, photo
+    department, room, photo, code (optional)
 
 A doctor whose last_name + first_name + patronymic already exists is updated,
 not duplicated, so you can re-run the import after editing the CSV.
@@ -47,6 +47,8 @@ async def main(csv_path: str) -> None:
             )
             if doctor is None:
                 doctor = Doctor(last_name=last, first_name=first, patronymic=patronymic)
+                if clean(row.get("code")):  # optional: keep a code that is already printed on a banner
+                    doctor.code = clean(row.get("code"))
                 s.add(doctor)
                 added += 1
             else:

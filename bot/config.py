@@ -39,6 +39,10 @@ def _alert_chat_id() -> int | None:
 
 def _database_url() -> str:
     url = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///data/feedback.db")
+    # Render/Heroku give postgres://...; SQLAlchemy async needs postgresql+asyncpg://
+    for old in ("postgres://", "postgresql://"):
+        if url.startswith(old):
+            url = "postgresql+asyncpg://" + url[len(old):]
     # Make relative SQLite paths relative to the project folder, not the cwd.
     prefix = "sqlite+aiosqlite:///"
     if url.startswith(prefix) and not url[len(prefix):].startswith("/"):

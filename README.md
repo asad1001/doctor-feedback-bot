@@ -75,6 +75,20 @@ doctor's link.
 > Each doctor's code is permanent. Don't delete `data/feedback.db` once banners
 > are printed, or the printed QR codes will stop matching.
 
+### Door banners
+
+```bash
+python scripts/generate_banners.py
+```
+
+Creates a print-ready A4 banner per doctor in `banners/` (photo, name,
+specialty, room, logo, QR code). Open the `.html` file in Chrome or Edge,
+press Ctrl+P, choose A4, margins "None", tick "Background graphics", and save
+as PDF or print. Put photos in `photos/` (portrait, at least 1000 px tall).
+
+If a banner was already printed with a code (e.g. on another computer), add
+a `code` column to the CSV so the doctor keeps that exact QR code.
+
 ## 4. Run
 
 ```bash
@@ -147,6 +161,33 @@ the patient.
 1. Create a Telegram group for management and add your bot to it.
 2. In the group send `/chatid`. The bot replies with `ALERT_CHAT_ID=-100...`.
 3. Put that line into `.env` and restart the bot.
+
+## Deploy to Render (website + bot in one service)
+
+On a server the bot does not use polling. The dashboard web service receives
+Telegram messages on `/telegram/webhook`, so **one Render Web Service runs
+both the website and the bot**. Render sets `RENDER_EXTERNAL_URL` itself; on
+startup the app tells Telegram to send updates there.
+
+1. Render → New → Web Service → your GitHub repo (or use `render.yaml`).
+2. Build command: `pip install -r requirements.txt`
+3. Start command: `uvicorn dashboard.app:app --host 0.0.0.0 --port $PORT`
+4. Environment variables: `BOT_TOKEN`, `BOT_USERNAME`, `ANON_SALT`,
+   `DASHBOARD_USERS`, `DASHBOARD_SECRET`, optional `ALERT_CHAT_ID`,
+   and `PYTHON_VERSION=3.12.7`.
+5. Deploy. The log should show `Telegram webhook set to https://...`.
+6. **Stop `python -m bot` on your laptop.** While the server runs the bot,
+   `python -m bot` refuses to start (use `--force` only if you want to take
+   the bot back to your laptop; redeploy Render to give it back).
+
+Notes for the free plan:
+* The service sleeps after ~15 minutes without visitors. The first patient
+  message wakes it, so the first answer can take up to a minute; after that
+  it is instant.
+* The free disk is not permanent: on every redeploy/restart the SQLite file
+  goes back to the version in git, and new responses are lost. Fine for a
+  demo; for real use create a Render PostgreSQL database and set
+  `DATABASE_URL` to its connection string (Postgres is supported out of the box).
 
 ## Going live (24/7)
 

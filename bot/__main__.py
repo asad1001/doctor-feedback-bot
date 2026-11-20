@@ -1,17 +1,16 @@
-"""Run the bot:  python -m bot"""
+"""Run the bot on your own computer:  python -m bot
+
+On a server (Render) you do NOT run this. The dashboard web service runs the
+bot through a webhook instead (see README, "Deploy to Render").
+"""
 
 import asyncio
 import logging
 import sys
 
-from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
-
 from .config import settings
 from .db import init_db
-from .handlers import router
+from .runtime import create_bot
 
 
 async def main() -> None:
@@ -21,11 +20,18 @@ async def main() -> None:
         sys.exit("ANON_SALT is missing. Set a long random value in .env (see .env.example).")
 
     await init_db()
-    bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher(storage=MemoryStorage())
-    dp.include_router(router)
+    bot, dp = create_bot()
+    info = await bot.get_webhook_info()
+    if info.url and "--force" not in sys.argv:
+        await bot.session.close()
+        sys.exit(
+            f"This bot is currently running on a server (webhook: {info.url}).\n"
+            "Running it here too would take it away from the server.\n"
+            "If you really want to run it locally, use:  python -m bot --force"
+        )
+    await bot.delete_webhook()
     me = await bot.get_me()
-    logging.info("Bot @%s started", me.username)
+    logging.info("Bot @%s started (polling)", me.username)
     await dp.start_polling(bot)
 
 
