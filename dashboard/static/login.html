@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kirish · Bemorlar fikri</title>
+<style>
+  :root { --brand:#1f6f78; --bg:#f3f6f7; --text:#17262b; --muted:#5d6f75; --danger:#c0392b; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg);
+         font-family:"Segoe UI", Roboto, system-ui, sans-serif; color:var(--text); padding:16px; }
+  form { background:#fff; width:100%; max-width:360px; padding:32px 28px; border-radius:16px;
+         box-shadow:0 10px 30px rgba(20,50,60,.08); }
+  .logo { font-size:34px; }
+  h1 { font-size:20px; margin:8px 0 4px; }
+  p { color:var(--muted); margin:0 0 24px; font-size:14px; }
+  label { display:block; font-size:13px; font-weight:600; margin:14px 0 6px; }
+  input { width:100%; padding:11px 12px; border:1px solid #d3dde0; border-radius:10px; font-size:15px; }
+  input:focus { outline:2px solid var(--brand); border-color:transparent; }
+  button { width:100%; margin-top:22px; padding:12px; border:0; border-radius:10px; background:var(--brand);
+           color:#fff; font-size:15px; font-weight:600; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  .error { color:var(--danger); font-size:14px; min-height:18px; margin-top:12px; }
+</style>
+</head>
+<body>
+<form method="post" action="/login">
+  <div class="logo">🩺</div>
+  <h1>Bemorlar fikri</h1>
+  <p>Bolalar milliy tibbiyot markazi · boshqaruv paneli</p>
+  <label for="u">Login</label>
+  <input id="u" name="username" autocomplete="username" required autofocus>
+  <label for="p">Parol</label>
+  <input id="p" name="password" type="password" autocomplete="current-password" required>
+  <button type="submit">Kirish</button>
+  <div class="error">{{error}}</div>
+</form>
+</body>
+</html>

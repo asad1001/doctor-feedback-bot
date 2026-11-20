@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bemorlar fikri · Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --brand:#1f6f78; --brand-soft:#e3f1f2; --bg:#f3f6f7; --card:#fff; --text:#17262b; --muted:#5d6f75;
+    --line:#e3e9eb; --good:#2e8b57; --mid:#e0a526; --bad:#c94a3f; --radius:14px;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 "Segoe UI", Roboto, system-ui, sans-serif; }
+  header { background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; }
+  .bar { max-width:1280px; margin:0 auto; padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .title { font-weight:700; font-size:17px; display:flex; align-items:center; gap:8px; margin-right:auto; }
+  .title small { font-weight:400; color:var(--muted); font-size:12px; display:block; }
+  .live { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--good); }
+  .live i { width:8px; height:8px; border-radius:50%; background:var(--good); animation:pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity:.3; } }
+  select, input[type=date], input[type=search] { padding:7px 9px; border:1px solid var(--line); border-radius:9px; background:#fff; font:inherit; }
+  .btn { padding:7px 12px; border:1px solid var(--line); border-radius:9px; background:#fff; cursor:pointer; font:inherit; color:var(--text); text-decoration:none; white-space:nowrap; }
+  .btn.primary { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .btn:hover { filter:brightness(.97); }
+  .langs button { border:0; background:none; cursor:pointer; padding:4px 6px; border-radius:6px; color:var(--muted); font-weight:600; }
+  .langs button.on { background:var(--brand-soft); color:var(--brand); }
+  nav { max-width:1280px; margin:0 auto; padding:0 16px; display:flex; gap:4px; overflow-x:auto; }
+  nav button { border:0; background:none; padding:10px 14px; cursor:pointer; font:inherit; color:var(--muted); border-bottom:2px solid transparent; white-space:nowrap; }
+  nav button.on { color:var(--brand); border-color:var(--brand); font-weight:600; }
+  nav .badge { background:var(--bad); color:#fff; border-radius:10px; padding:0 6px; font-size:11px; margin-left:4px; }
+  main { max-width:1280px; margin:0 auto; padding:20px 16px 60px; }
+  .grid { display:grid; gap:14px; }
+  .kpis { grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; min-width:0; }
+  .kpi .label { color:var(--muted); font-size:12.5px; }
+  .kpi .value { font-size:28px; font-weight:700; margin-top:4px; }
+  .kpi .sub { color:var(--muted); font-size:12px; }
+  .kpi.alert .value { color:var(--bad); }
+  .two { grid-template-columns:2fr 1fr; margin-top:14px; }
+  .halves { grid-template-columns:1fr 1fr; margin-top:14px; }
+  @media (max-width:900px) { .two, .halves { grid-template-columns:1fr; } }
+  h3 { margin:0 0 12px; font-size:15px; }
+  .chart { position:relative; height:260px; }
+  .stack { margin:10px 0 14px; }
+  .stack .q { font-size:13px; margin-bottom:5px; display:flex; justify-content:space-between; gap:8px; }
+  .stack .track { display:flex; height:22px; border-radius:6px; overflow:hidden; background:var(--line); }
+  .stack .track span { display:block; height:100%; font-size:11px; color:#fff; text-align:center; line-height:22px; overflow:hidden; white-space:nowrap; }
+  .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:9px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { font-size:12px; color:var(--muted); font-weight:600; cursor:pointer; user-select:none; position:sticky; top:0; background:var(--card); }
+  th.num, td.num { text-align:right; }
+  tbody tr { cursor:pointer; }
+  tbody tr:hover { background:#f7fafb; }
+  .scroll { overflow-x:auto; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; font-weight:600; }
+  .g { background:#e3f3ea; color:var(--good); } .m { background:#fbf1d9; color:#9a6c00; } .b { background:#f8e1de; color:var(--bad); } .n { color:var(--muted); }
+  .feed { display:grid; gap:10px; }
+  .item { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .item .meta { color:var(--muted); font-size:12px; display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  .item .meta b { color:var(--text); cursor:pointer; }
+  .item .text { white-space:pre-wrap; word-wrap:break-word; }
+  .item.red { border-left:4px solid var(--bad); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .chips span { font-size:12px; background:var(--bg); padding:2px 8px; border-radius:8px; }
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .empty { color:var(--muted); text-align:center; padding:40px 10px; }
+  .doc-head { display:flex; gap:16px; align-items:center; margin-bottom:14px; }
+  .avatar { width:64px; height:64px; border-radius:50%; background:var(--brand-soft); display:grid; place-items:center; font-size:28px; overflow:hidden; flex:none; }
+  .avatar img { width:100%; height:100%; object-fit:cover; }
+  .doc-head h2 { margin:0; font-size:20px; }
+  .muted { color:var(--muted); }
+  .rank li { display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+  .rank { list-style:none; margin:0; padding:0; }
+  .hidden { display:none !important; }
+  .banner { display:flex; align-items:center; gap:10px; background:#fdecea; color:#8e2a20; border:1px solid #f5c6c0;
+            border-radius:12px; padding:10px 14px; margin-bottom:14px; cursor:pointer; font-weight:600; }
+  .banner .btn { margin-left:auto; }
+  .kpi.main { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .kpi.main .label, .kpi.main .sub { color:#d5ecee; }
+  .mini { width:28px; height:28px; border-radius:50%; background:var(--brand-soft); display:inline-grid; place-items:center;
+          font-size:14px; overflow:hidden; vertical-align:middle; margin-right:8px; flex:none; }
+  .mini img { width:100%; height:100%; object-fit:cover; }
+  .rank li { align-items:center; }
+  .rank .who { display:flex; align-items:center; min-width:0; }
+  .rank .who span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .meter { width:110px; height:20px; background:var(--line); border-radius:6px; overflow:hidden; position:relative; flex:none; }
+  .meter i { display:block; height:100%; }
+  .meter b { position:absolute; inset:0; font-size:11.5px; line-height:20px; text-align:center; color:var(--text); }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .seg button { border:0; background:#fff; padding:7px 12px; cursor:pointer; font:inherit; color:var(--muted); }
+  .seg button.on { background:var(--brand-soft); color:var(--brand); font-weight:600; }
+  #toast { position:fixed; right:16px; bottom:16px; background:var(--text); color:#fff; padding:10px 14px; border-radius:10px; opacity:0; transition:opacity .3s; pointer-events:none; }
+  #toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="title">🩺 <div><span data-t="app"></span><small data-t="org"></small></div></div>
+    <span class="live"><i></i><span data-t="live"></span></span>
+    <select id="period">
+      <option value="7" data-t="p7"></option>
+      <option value="30" selected data-t="p30"></option>
+      <option value="90" data-t="p90"></option>
+      <option value="365" data-t="p365"></option>
+      <option value="all" data-t="pall"></option>
+      <option value="custom" data-t="pcustom"></option>
+    </select>
+    <span id="custom" class="hidden"><input type="date" id="from"> – <input type="date" id="to"></span>
+    <select id="department"><option value="" data-t="alldep"></option></select>
+    <select id="specialty"><option value="" data-t="allspec"></option></select>
+    <a class="btn primary" id="export" href="#">⬇ Excel</a>
+    <span class="langs"><button data-l="uz">UZ</button><button data-l="ru">RU</button><button data-l="en">EN</button></span>
+    <a class="btn" href="/logout" data-t="logout"></a>
+  </div>
+  <nav>
+    <button data-tab="overview" class="on" data-t="t_overview"></button>
+    <button data-tab="doctors" data-t="t_doctors"></button>
+    <button data-tab="departments" data-t="t_departments"></button>
+    <button data-tab="comments" data-t="t_comments"></button>
+    <button data-tab="alerts"><span data-t="t_alerts"></span><span class="badge hidden" id="cbadge"></span></button>
+  </nav>
+</header>
+
+<main>
+  <!-- OVERVIEW -->
+  <section id="tab-overview">
+    <div class="banner hidden" id="banner">🔔 <span id="bannerText"></span><span class="btn" data-t="view"></span></div>
+    <div class="grid kpis" id="kpis"></div>
+    <div class="grid two">
+      <div class="card"><h3 data-t="trend"></h3><div class="chart"><canvas id="trendChart"></canvas></div></div>
+      <div class="card"><h3 data-t="npsdist"></h3><div class="chart"><canvas id="npsChart"></canvas></div></div>
+    </div>
+    <div class="grid halves">
+      <div class="card"><h3 data-t="npstrend"></h3><div class="chart"><canvas id="npsTrend"></canvas></div></div>
+      <div class="card"><h3 data-t="depwait"></h3><div class="chart"><canvas id="depWait"></canvas></div></div>
+    </div>
+    <div class="grid halves">
+      <div class="card"><h3 data-t="answers"></h3><div id="stacks"></div></div>
+      <div class="card">
+        <h3 data-t="best"></h3><ul class="rank" id="best"></ul>
+        <h3 style="margin-top:18px" data-t="worst"></h3><ul class="rank" id="worst"></ul>
+        <p class="muted" style="font-size:12px;margin:10px 0 0" data-t="minresp"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOCTORS -->
+  <section id="tab-doctors" class="hidden">
+    <div class="toolbar"><input type="search" id="search" data-tp="search" style="min-width:240px"></div>
+    <div class="card scroll" style="padding:0">
+      <table id="docTable"><thead></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <!-- DOCTOR DETAIL -->
+  <section id="tab-doctor" class="hidden">
+    <div class="toolbar"><button class="btn" id="back" data-t="back"></button></div>
+    <div class="doc-head"><div class="avatar" id="dAvatar">👨‍⚕️</div><div><h2 id="dName"></h2><div class="muted" id="dSpec"></div></div></div>
+    <div class="grid kpis" id="dKpis"></div>
+    <div class="grid two">
+      <div class="card"><h3 data-t="trend"></h3><div class="chart"><canvas id="dTrend"></canvas></div></div>
+      <div class="card"><h3 data-t="answers"></h3><div id="dStacks"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3 data-t="recent"></h3><div class="feed" id="dFeed"></div></div>
+  </section>
+
+  <!-- DEPARTMENTS -->
+  <section id="tab-departments" class="hidden">
+    <div class="card scroll" style="padding:0"><table id="depTable"><thead></thead><tbody></tbody></table></div>
+    <div class="card" style="margin-top:14px"><h3 data-t="depwait"></h3><div class="chart" style="height:320px"><canvas id="depWait2"></canvas></div></div>
+  </section>
+
+  <!-- COMMENTS -->
+  <section id="tab-comments" class="hidden"><div class="feed" id="commentFeed"></div></section>
+
+  <!-- CORRUPTION -->
+  <section id="tab-alerts" class="hidden">
+    <div class="toolbar"><span class="seg" id="alertSeg"><button data-f="all" class="on" data-t="a_all"></button><button data-f="corr" data-t="a_corr"></button></span></div>
+    <p class="muted" data-t="alertnote"></p>
+    <div class="feed" id="alertFeed"></div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const T = {
+  uz: {
+    app:"Bemorlar fikri", org:"Bolalar milliy tibbiyot markazi", live:"Jonli", p7:"Oxirgi 7 kun", p30:"Oxirgi 30 kun",
+    p90:"Oxirgi 90 kun", p365:"Oxirgi yil", pall:"Butun davr", pcustom:"Sanani tanlash", allspec:"Barcha mutaxassisliklar",
+    logout:"Chiqish", t_overview:"Umumiy", t_doctors:"Shifokorlar", t_comments:"Izohlar", t_corruption:"Korrupsiya",
+    trend:"Javoblar soni va sifat indeksi", npsdist:"Tavsiya bahosi (1–10)", answers:"Javoblar taqsimoti",
+    alldep:"Barcha boʻlimlar", t_departments:"Boʻlimlar", t_alerts:"Ogohlantirishlar", view:"Koʻrish",
+    npstrend:"NPS dinamikasi", depwait:"Boʻlimlar kesimida navbat kutish", banner:"Oxirgi 24 soatda {n} ta ogohlantirish (past baho yoki korrupsiya)",
+    a_all:"Barchasi", a_corr:"Faqat korrupsiya", alertnote:"Korrupsiya haqida xabarlar va juda past baholar (muomala 1–2, tavsiya 1–3). Javoblar anonim.",
+    k_quality:"Sifat indeksi", k_quality_sub:"Q1–Q5 boʻyicha eng yaxshi javoblar ulushi", k_csat:"CSAT", k_csat_sub:"natijadan toʻliq qoniqqan",
+    k_alerts:"Ogohlantirishlar", c_quality:"Sifat", c_csat:"CSAT", c_dep:"Boʻlim", c_room:"Kabinet", c_longwait:"Uzoq kutish", c_alerts:"Ogohl.",
+    quality:"Sifat indeksi %", room:"kabinet",
+    best:"🏆 Eng yaxshi shifokorlar", worst:"⚠️ Eʼtibor talab qiladi", minresp:"Kamida 5 ta javobi bor shifokorlar hisobga olinadi.",
+    search:"Shifokor yoki mutaxassislik…", back:"← Orqaga", recent:"Soʻnggi javoblar",
+    corrnote:"Bemor “Ha” deb javob bergan holatlar. Javoblar anonim, bemor shaxsi saqlanmaydi.",
+    k_count:"Javoblar soni", k_emp:"Muomala (5 dan)", k_nps:"NPS", k_nps_sub:"tavsiya: {p}% · tanqid: {d}%",
+    k_sat:"Natijadan qoniqqan", k_time:"Oʻz vaqtida qabul", k_expl:"Toʻliq tushuntirgan", k_thor:"Koʻrik yetarli",
+    k_corr:"Korrupsiya holatlari", k_comm:"Izohlar",
+    c_doctor:"Shifokor", c_spec:"Mutaxassislik", c_n:"Javob", c_emp:"Muomala", c_nps:"NPS", c_expl:"Tushuntirish",
+    c_time:"Vaqt", c_thor:"Koʻrik", c_sat:"Qoniqish", c_corr:"Korrupsiya",
+    q1:"Muomala va eʼtibor", q2:"Tushuntirish", q3:"Qabul vaqti", q4:"Koʻrik", q5:"Natija", q7:"Pul/sovgʻa talab qilinganmi",
+    o:{ "5":"Juda yaxshi","4":"Yaxshi","3":"Qoniqarli","2":"Yomon","1":"Juda yomon", full:"Toʻliq", partial:"Qisman", none:"Tushuntirmadi",
+        on_time:"Oʻz vaqtida", waited_15_20:"15–20 daqiqa", long_wait:"Uzoq kutdi", enough:"Yetarli", rushed:"Shoshilinch",
+        not:"Qoniqmadi", "true":"Ha", "false":"Yoʻq" },
+    nodata:"Tanlangan davrda maʼlumot yoʻq", newresp:"Yangi javob keldi", responses:"javob", empathy:"Muomala",
+    nocomment:"Izohsiz", lang:"Til", nps_short:"Tavsiya",
+  },
+  ru: {
+    app:"Отзывы пациентов", org:"Национальный детский медицинский центр", live:"Онлайн", p7:"Последние 7 дней", p30:"Последние 30 дней",
+    p90:"Последние 90 дней", p365:"Последний год", pall:"За всё время", pcustom:"Выбрать даты", allspec:"Все специальности",
+    logout:"Выйти", t_overview:"Обзор", t_doctors:"Врачи", t_comments:"Комментарии", t_corruption:"Коррупция",
+    trend:"Отзывы и индекс качества", npsdist:"Готовность рекомендовать (1–10)", answers:"Распределение ответов",
+    alldep:"Все отделения", t_departments:"Отделения", t_alerts:"Оповещения", view:"Открыть",
+    npstrend:"Динамика NPS", depwait:"Ожидание в очереди по отделениям", banner:"За последние 24 часа: {n} оповещений (низкая оценка или коррупция)",
+    a_all:"Все", a_corr:"Только коррупция", alertnote:"Сообщения о коррупции и очень низкие оценки (вежливость 1–2, рекомендация 1–3). Ответы анонимны.",
+    k_quality:"Индекс качества", k_quality_sub:"доля лучших ответов по В1–В5", k_csat:"CSAT", k_csat_sub:"полностью довольны результатом",
+    k_alerts:"Оповещения", c_quality:"Качество", c_csat:"CSAT", c_dep:"Отделение", c_room:"Кабинет", c_longwait:"Долгое ожидание", c_alerts:"Опов.",
+    quality:"Индекс качества %", room:"кабинет",
+    best:"🏆 Лучшие врачи", worst:"⚠️ Требуют внимания", minresp:"Учитываются врачи с 5 и более отзывами.",
+    search:"Врач или специальность…", back:"← Назад", recent:"Последние отзывы",
+    corrnote:"Случаи, когда пациент ответил «Да». Ответы анонимны, личность пациента не сохраняется.",
+    k_count:"Всего отзывов", k_emp:"Вежливость (из 5)", k_nps:"NPS", k_nps_sub:"промоутеры: {p}% · критики: {d}%",
+    k_sat:"Довольны результатом", k_time:"Приём вовремя", k_expl:"Объяснили полностью", k_thor:"Осмотр достаточный",
+    k_corr:"Случаи коррупции", k_comm:"Комментарии",
+    c_doctor:"Врач", c_spec:"Специальность", c_n:"Отзывы", c_emp:"Вежливость", c_nps:"NPS", c_expl:"Объяснение",
+    c_time:"Время", c_thor:"Осмотр", c_sat:"Удовлетв.", c_corr:"Коррупция",
+    q1:"Вежливость и внимание", q2:"Объяснение", q3:"Время приёма", q4:"Осмотр", q5:"Результат", q7:"Требовали деньги/подарок",
+    o:{ "5":"Очень хорошо","4":"Хорошо","3":"Удовл.","2":"Плохо","1":"Очень плохо", full:"Полностью", partial:"Частично", none:"Не объяснил",
+        on_time:"Вовремя", waited_15_20:"15–20 мин", long_wait:"Долго ждал", enough:"Достаточно", rushed:"В спешке",
+        not:"Не доволен", "true":"Да", "false":"Нет" },
+    nodata:"Нет данных за выбранный период", newresp:"Новый отзыв", responses:"отзывов", empathy:"Вежливость",
+    nocomment:"Без комментария", lang:"Язык", nps_short:"Рекомендация",
+  },
+  en: {
+    app:"Patient feedback", org:"National Children's Medical Center", live:"Live", p7:"Last 7 days", p30:"Last 30 days",
+    p90:"Last 90 days", p365:"Last year", pall:"All time", pcustom:"Custom dates", allspec:"All specialties",
+    logout:"Log out", t_overview:"Overview", t_doctors:"Doctors", t_comments:"Comments", t_corruption:"Corruption",
+    trend:"Responses and quality index", npsdist:"Likelihood to recommend (1–10)", answers:"Answer breakdown",
+    alldep:"All departments", t_departments:"Departments", t_alerts:"Alerts", view:"View",
+    npstrend:"NPS over time", depwait:"Waiting time by department", banner:"{n} alerts in the last 24 hours (low rating or corruption)",
+    a_all:"All", a_corr:"Corruption only", alertnote:"Corruption reports and very low ratings (courtesy 1–2, recommend 1–3). Responses are anonymous.",
+    k_quality:"Quality index", k_quality_sub:"share of best answers across Q1–Q5", k_csat:"CSAT", k_csat_sub:"fully satisfied with outcome",
+    k_alerts:"Alerts", c_quality:"Quality", c_csat:"CSAT", c_dep:"Department", c_room:"Room", c_longwait:"Long wait", c_alerts:"Alerts",
+    quality:"Quality index %", room:"room",
+    best:"🏆 Top doctors", worst:"⚠️ Need attention", minresp:"Only doctors with 5+ responses are ranked.",
+    search:"Doctor or specialty…", back:"← Back", recent:"Recent responses",
+    corrnote:"Cases where the patient answered “Yes”. Responses are anonymous; patient identity is not stored.",
+    k_count:"Responses", k_emp:"Courtesy (out of 5)", k_nps:"NPS", k_nps_sub:"promoters: {p}% · detractors: {d}%",
+    k_sat:"Satisfied with outcome", k_time:"Seen on time", k_expl:"Fully explained", k_thor:"Exam sufficient",
+    k_corr:"Corruption reports", k_comm:"Comments",
+    c_doctor:"Doctor", c_spec:"Specialty", c_n:"Resp.", c_emp:"Courtesy", c_nps:"NPS", c_expl:"Explained",
+    c_time:"On time", c_thor:"Exam", c_sat:"Satisfied", c_corr:"Corruption",
+    q1:"Courtesy and attention", q2:"Explanation", q3:"Waiting time", q4:"Examination", q5:"Outcome", q7:"Money/gift requested",
+    o:{ "5":"Very good","4":"Good","3":"Satisfactory","2":"Poor","1":"Very poor", full:"Fully", partial:"Partly", none:"Not explained",
+        on_time:"On time", waited_15_20:"15–20 min", long_wait:"Long wait", enough:"Sufficient", rushed:"Rushed",
+        not:"Not satisfied", "true":"Yes", "false":"No" },
+    nodata:"No data for the selected period", newresp:"New response received", responses:"responses", empathy:"Courtesy",
+    nocomment:"No comment", lang:"Language", nps_short:"Recommend",
+  },
+};
+let L = (()=>{ try { return localStorage.getItem("lang") || "uz"; } catch { return "uz"; } })();
+const t = (k, vars={}) => { const s = T[L][k] ?? k; return typeof s === "string" ? s.replace(/\{(\w+)\}/g, (_, v) => vars[v]) : s; };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const COLORS = { good:"#2e8b57", mid:"#e0a526", bad:"#c94a3f", brand:"#1f6f78", soft:"#9cc9cd" };
+const SCALE = { q1_empathy:["#2e8b57","#7cb77f","#e0a526","#e07a3f","#c94a3f"], three:["#2e8b57","#e0a526","#c94a3f"], q7_corruption:["#c94a3f","#2e8b57"] };
+
+let state = { tab:"overview", doctors:[], sort:{ key:"quality", dir:-1 }, doctorId:null, latestId:null, alertFilter:"all" };
+const charts = {};
+
+function applyLang() {
+  document.documentElement.lang = L;
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = t(el.dataset.t));
+  document.querySelectorAll("[data-tp]").forEach(el => el.placeholder = t(el.dataset.tp));
+  document.querySelectorAll(".langs button").forEach(b => b.classList.toggle("on", b.dataset.l === L));
+}
+
+function iso(d) { return d.toLocaleDateString("sv-SE"); }
+function range() {
+  const p = $("#period").value, q = new URLSearchParams();
+  if (p === "custom") { if ($("#from").value) q.set("date_from", $("#from").value); if ($("#to").value) q.set("date_to", $("#to").value); }
+  else if (p !== "all") { const d = new Date(); d.setDate(d.getDate() - (+p - 1)); q.set("date_from", iso(d)); q.set("date_to", iso(new Date())); }
+  if ($("#specialty").value) q.set("specialty", $("#specialty").value);
+  if ($("#department").value) q.set("department", $("#department").value);
+  return q;
+}
+async function api(path, q = range()) {
+  const r = await fetch(path + (q.toString() ? "?" + q : ""));
+  if (r.status === 401) { location.href = "/login"; throw new Error("auth"); }
+  return r.json();
+}
+
+const fmt = (v, suf="") => v === null || v === undefined ? "–" : v + suf;
+function cls(v, good, bad) { if (v === null || v === undefined) return "n"; return v >= good ? "g" : v <= bad ? "b" : "m"; }
+function pill(v, good, bad, suf="") { return `<span class="pill ${cls(v, good, bad)}">${fmt(v, suf)}</span>`; }
+
+function kpiCards(m) {
+  return [
+    ["k_quality", fmt(m.quality, "%"), t("k_quality_sub"), "main"],
+    ["k_count", m.count, ""],
+    ["k_csat", fmt(m.csat, "%"), t("k_csat_sub")],
+    ["k_nps", fmt(m.nps), m.count ? t("k_nps_sub", { p: m.promoters, d: m.detractors }) : ""],
+    ["k_emp", fmt(m.empathy_avg), ""],
+    ["k_time", fmt(m.on_time_pct, "%"), ""],
+    ["k_expl", fmt(m.communication_pct, "%"), ""],
+    ["k_corr", m.corruption_count, m.count ? fmt(m.corruption_pct, "%") : "", m.corruption_count > 0 ? "alert" : ""],
+  ].map(([k, v, sub, c]) => `<div class="card kpi ${c || ""}"><div class="label">${t(k)}</div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join("");
+}
+const avatar = d => `<span class="mini">${d.photo ? `<img src="/photo/${d.id}" alt="">` : "👨‍⚕️"}</span>`;
+const qcolor = v => v === null ? "#ccc" : v >= 75 ? COLORS.good : v >= 55 ? COLORS.mid : COLORS.bad;
+const meter = v => `<span class="meter"><i style="width:${v ?? 0}%;background:${qcolor(v)}"></i><b>${fmt(v, "%")}</b></span>`;
+
+function stacks(b) {
+  const rows = [["q1_empathy","q1",SCALE.q1_empathy],["q2_communication","q2",SCALE.three],["q3_timeliness","q3",SCALE.three],
+                ["q4_thoroughness","q4",SCALE.three],["q5_outcome","q5",SCALE.three],["q7_corruption","q7",SCALE.q7_corruption]];
+  return rows.map(([f, label, colors]) => {
+    const opts = b[f], total = opts.reduce((s, o) => s + o.count, 0);
+    const segs = opts.map((o, i) => { const p = total ? 100 * o.count / total : 0;
+      return p ? `<span style="width:${p}%;background:${colors[i]}" title="${esc(t("o")[String(o.value)])}: ${o.count} (${p.toFixed(0)}%)">${p >= 9 ? p.toFixed(0) + "%" : ""}</span>` : ""; }).join("");
+    const legend = opts.map((o, i) => `<span><i style="background:${colors[i]}"></i>${esc(t("o")[String(o.value)])} · ${o.count}</span>`).join("");
+    return `<div class="stack"><div class="q"><b>${t(label)}</b></div><div class="track">${segs}</div><div class="legend" style="margin-top:5px">${legend}</div></div>`;
+  }).join("");
+}
+
+function drawTrend(id, series) {
+  charts[id]?.destroy();
+  charts[id] = new Chart(document.getElementById(id), {
+    data: { labels: series.map(s => s.date.slice(5)),
+      datasets: [
+        { type:"bar", label:t("responses"), data:series.map(s => s.count), backgroundColor:COLORS.soft, yAxisID:"y", borderRadius:4 },
+        { type:"line", label:t("quality"), data:series.map(s => s.quality), borderColor:COLORS.brand, backgroundColor:COLORS.brand,
+          yAxisID:"y1", tension:.3, spanGaps:true, pointRadius:2 },
+      ] },
+    options: { maintainAspectRatio:false, interaction:{ mode:"index", intersect:false },
+      plugins:{ legend:{ position:"bottom", labels:{ boxWidth:12 } } },
+      scales:{ y:{ beginAtZero:true, ticks:{ precision:0 }, grid:{ color:"#eef2f3" } },
+               y1:{ position:"right", min:0, max:100, grid:{ display:false } }, x:{ grid:{ display:false } } } },
+  });
+}
+
+function drawNps(b) {
+  charts.nps?.destroy();
+  const data = [...b.q6_nps].reverse();  // 1..10
+  charts.nps = new Chart($("#npsChart"), {
+    type:"bar",
+    data:{ labels:data.map(o => o.value), datasets:[{ data:data.map(o => o.count), borderRadius:4,
+      backgroundColor:data.map(o => o.value >= 9 ? COLORS.good : o.value >= 7 ? COLORS.mid : COLORS.bad) }] },
+    options:{ maintainAspectRatio:false, plugins:{ legend:{ display:false } },
+      scales:{ y:{ beginAtZero:true, ticks:{ precision:0 }, grid:{ color:"#eef2f3" } }, x:{ grid:{ display:false } } } },
+  });
+}
+
+function drawNpsTrend(series) {
+  charts.npsTrend?.destroy();
+  charts.npsTrend = new Chart($("#npsTrend"), {
+    type:"line",
+    data:{ labels:series.map(s => s.date.slice(5)), datasets:[{ label:"NPS", data:series.map(s => s.nps), borderColor:COLORS.brand,
+      backgroundColor:"rgba(31,111,120,.12)", fill:true, tension:.3, spanGaps:true, pointRadius:2 }] },
+    options:{ maintainAspectRatio:false, plugins:{ legend:{ display:false } },
+      scales:{ y:{ min:-100, max:100, grid:{ color:"#eef2f3" } }, x:{ grid:{ display:false } } } },
+  });
+}
+function drawDepWait(id, deps) {
+  charts[id]?.destroy();
+  const o = t("o"), keys = ["on_time", "waited_15_20", "long_wait"], cols = SCALE.three;
+  charts[id] = new Chart(document.getElementById(id), {
+    type:"bar",
+    data:{ labels:deps.map(d => d.department),
+      datasets:keys.map((k, i) => ({ label:o[k], backgroundColor:cols[i],
+        data:deps.map(d => d.count ? +(100 * d.wait[k] / d.count).toFixed(1) : 0) })) },
+    options:{ indexAxis:"y", maintainAspectRatio:false, plugins:{ legend:{ position:"bottom", labels:{ boxWidth:12 } },
+      tooltip:{ callbacks:{ label:c => `${c.dataset.label}: ${c.raw}%` } } },
+      scales:{ x:{ stacked:true, max:100, ticks:{ callback:v => v + "%" }, grid:{ color:"#eef2f3" } }, y:{ stacked:true, grid:{ display:false } } } },
+  });
+}
+
+function responseItem(r, showDoctor = true) {
+  const o = t("o");
+  const chips = [`${t("q1")}: ${r.q1_empathy}/5`, `${t("nps_short")}: ${r.q6_nps}/10`, `${t("q2")}: ${o[r.q2_communication]}`,
+                 `${t("q3")}: ${o[r.q3_timeliness]}`, `${t("q4")}: ${o[r.q4_thoroughness]}`, `${t("q5")}: ${o[r.q5_outcome]}`];
+  return `<div class="item ${r.alert ? "red" : ""}">
+    <div class="meta"><span>🕒 ${esc(r.created_at)}</span>${showDoctor ? `<b data-doc="${r.doctor_id}">👨‍⚕️ ${esc(r.doctor)}</b><span>${esc(r.specialty)}</span>` : ""}
+      <span>${t("lang")}: ${r.language.toUpperCase()}</span>${r.q7_corruption ? `<span class="pill b">⚠️ ${t("q7")}: ${o["true"]}</span>` : ""}</div>
+    <div class="text">${r.q8_comment ? esc(r.q8_comment) : `<span class="muted">${t("nocomment")}</span>`}</div>
+    <div class="chips">${chips.map(c => `<span>${esc(c)}</span>`).join("")}</div></div>`;
+}
+const feed = (list, showDoctor) => list.length ? list.map(r => responseItem(r, showDoctor)).join("") : `<div class="empty">${t("nodata")}</div>`;
+
+async function loadOverview() {
+  const [ov, docs] = await Promise.all([api("/api/overview"), api("/api/doctors")]);
+  $("#kpis").innerHTML = kpiCards(ov.metrics);
+  $("#stacks").innerHTML = ov.metrics.count ? stacks(ov.breakdown) : `<div class="empty">${t("nodata")}</div>`;
+  drawTrend("trendChart", ov.timeseries);
+  drawNps(ov.breakdown);
+  drawNpsTrend(ov.timeseries);
+  drawDepWait("depWait", ov.departments);
+  const ranked = docs.filter(d => d.count >= 5).sort((a, b) => b.quality - a.quality);
+  const li = d => `<li data-doc="${d.id}"><span class="who">${avatar(d)}<span>${esc(d.name)} <span class="muted">· ${esc(d.specialty)}</span></span></span>${meter(d.quality)}</li>`;
+  const top = ranked.slice(0, 5);
+  $("#best").innerHTML = top.map(li).join("") || `<li class="muted">–</li>`;
+  $("#worst").innerHTML = ranked.slice(-5).reverse().filter(d => !top.includes(d)).map(li).join("") || `<li class="muted">–</li>`;
+  const n = ov.recent_alerts;
+  $("#banner").classList.toggle("hidden", !n); $("#bannerText").textContent = t("banner", { n });
+  const a = ov.metrics.alerts; $("#cbadge").textContent = a; $("#cbadge").classList.toggle("hidden", !a);
+}
+
+const COLS = [
+  ["name","c_doctor"],["specialty","c_spec"],["department","c_dep"],["room","c_room"],["count","c_n",1],["quality","c_quality",1,75,55,"%"],
+  ["csat","c_csat",1,85,60,"%"],["empathy_avg","c_emp",1,4.5,3.5],["nps","c_nps",1,50,0],
+  ["communication_pct","c_expl",1,85,60,"%"],["on_time_pct","c_time",1,80,50,"%"],["thorough_pct","c_thor",1,85,60,"%"],
+  ["satisfied_pct","c_sat",1,85,60,"%"],["corruption_count","c_corr",1],
+];
+function renderDoctors() {
+  const { key, dir } = state.sort, q = $("#search").value.toLowerCase();
+  const list = state.doctors.filter(d => (d.name + " " + d.specialty).toLowerCase().includes(q))
+    .sort((a, b) => { const x = a[key], y = b[key];
+      if (x === null) return 1; if (y === null) return -1;
+      return (typeof x === "string" ? x.localeCompare(y) : x - y) * dir; });
+  $("#docTable thead").innerHTML = "<tr>" + COLS.map(([k, l, num]) => `<th data-k="${k}" class="${num ? "num" : ""}">${t(l)}${key === k ? (dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("") + "</tr>";
+  $("#docTable tbody").innerHTML = list.map(d => `<tr data-doc="${d.id}">` + COLS.map(([k, , num, good, bad, suf]) => {
+    const v = d[k];
+    if (k === "name") return `<td>${avatar(d)}${esc(v)}</td>`;
+    if (!num) return `<td>${esc(v ?? "")}</td>`;
+    if (k === "corruption_count") return `<td class="num">${v ? `<span class="pill b">${v}</span>` : "0"}</td>`;
+    if (good === undefined) return `<td class="num">${v}</td>`;
+    return `<td class="num">${pill(v, good, bad, suf || "")}</td>`;
+  }).join("") + "</tr>").join("") || `<tr><td colspan="${COLS.length}" class="empty">${t("nodata")}</td></tr>`;
+}
+async function loadDoctors() { state.doctors = await api("/api/doctors"); renderDoctors(); }
+
+async function loadDoctor() {
+  const q = range(); q.delete("specialty");
+  const d = await api(`/api/doctors/${state.doctorId}`, q);
+  $("#dName").textContent = d.doctor.name;
+  $("#dSpec").textContent = [d.doctor.specialty, d.doctor["specialty_" + L], d.doctor.department,
+    d.doctor.room ? `${d.doctor.room} ${t("room")}` : null].filter((v, i, a) => v && a.indexOf(v) === i).join(" · ");
+  $("#dAvatar").innerHTML = d.doctor.photo ? `<img src="/photo/${d.doctor.id}" alt="">` : "👨‍⚕️";
+  $("#dKpis").innerHTML = kpiCards(d.metrics);
+  $("#dStacks").innerHTML = d.metrics.count ? stacks(d.breakdown) : `<div class="empty">${t("nodata")}</div>`;
+  drawTrend("dTrend", d.timeseries);
+  $("#dFeed").innerHTML = feed(d.responses, false);
+}
+
+async function loadComments() { $("#commentFeed").innerHTML = feed(await api("/api/responses", (q => (q.set("only_comments", "true"), q))(range())), true); }
+async function loadAlerts() {
+  const q = range(); q.set(state.alertFilter === "corr" ? "only_corruption" : "only_alerts", "true");
+  $("#alertFeed").innerHTML = feed(await api("/api/responses", q), true);
+}
+const DCOLS = [["department","c_dep"],["count","c_n",1],["quality","c_quality",1,75,55,"%"],["csat","c_csat",1,85,60,"%"],
+  ["nps","c_nps",1,50,0],["on_time_pct","c_time",1,80,50,"%"],["long_wait_pct","c_longwait",1],["corruption_count","c_corr",1]];
+async function loadDepartments() {
+  const ov = await api("/api/overview"), deps = ov.departments;
+  $("#depTable thead").innerHTML = "<tr>" + DCOLS.map(([k, l, num]) => `<th class="${num ? "num" : ""}">${t(l)}</th>`).join("") + "</tr>";
+  $("#depTable tbody").innerHTML = deps.map(d => `<tr data-dep="${esc(d.department)}">` + DCOLS.map(([k, , num, good, bad, suf]) => {
+    const v = d[k];
+    if (!num) return `<td>${esc(v)}</td>`;
+    if (k === "corruption_count") return `<td class="num">${v ? `<span class="pill b">${v}</span>` : "0"}</td>`;
+    if (k === "long_wait_pct") return `<td class="num"><span class="pill ${v === null ? "n" : v <= 10 ? "g" : v >= 25 ? "b" : "m"}">${fmt(v, "%")}</span></td>`;
+    if (good === undefined) return `<td class="num">${v}</td>`;
+    return `<td class="num">${pill(v, good, bad, suf || "")}</td>`;
+  }).join("") + "</tr>").join("") || `<tr><td colspan="${DCOLS.length}" class="empty">${t("nodata")}</td></tr>`;
+  drawDepWait("depWait2", deps);
+}
+
+const loaders = { overview:loadOverview, doctors:loadDoctors, doctor:loadDoctor, comments:loadComments, alerts:loadAlerts, departments:loadDepartments };
+function show(tab) {
+  state.tab = tab;
+  document.querySelectorAll("main > section").forEach(s => s.classList.toggle("hidden", s.id !== "tab-" + tab));
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === (tab === "doctor" ? "doctors" : tab)));
+  refresh();
+}
+function refresh() {
+  $("#export").href = "/api/export.xlsx?" + range();
+  return loaders[state.tab]().catch(e => console.error(e));
+}
+function openDoctor(id) { state.doctorId = id; show("doctor"); window.scrollTo(0, 0); }
+
+function toast(msg) { const el = $("#toast"); el.textContent = msg; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 3000); }
+async function poll() {
+  try {
+    const { latest_id } = await api("/api/latest", new URLSearchParams());
+    if (state.latestId !== null && latest_id !== state.latestId) { toast("🔔 " + t("newresp")); refresh(); if (state.tab !== "overview") loadOverview().catch(() => {}); }
+    state.latestId = latest_id;
+  } catch {}
+}
+
+// events
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.tab));
+$("#period").onchange = () => { $("#custom").classList.toggle("hidden", $("#period").value !== "custom"); refresh(); };
+$("#from").onchange = $("#to").onchange = $("#specialty").onchange = $("#department").onchange = refresh;
+$("#banner").onclick = () => show("alerts");
+$("#alertSeg").onclick = e => { const f = e.target.dataset.f; if (!f) return; state.alertFilter = f;
+  document.querySelectorAll("#alertSeg button").forEach(b => b.classList.toggle("on", b.dataset.f === f)); loadAlerts(); };
+$("#depTable tbody").onclick = e => { const dep = e.target.closest("tr")?.dataset.dep; if (!dep || dep === "—") return;
+  $("#department").value = dep; show("doctors"); };
+$("#search").oninput = renderDoctors;
+$("#back").onclick = () => show("doctors");
+$("#docTable thead").onclick = e => { const k = e.target.closest("th")?.dataset.k; if (!k) return;
+  state.sort = { key:k, dir: state.sort.key === k ? -state.sort.dir : (["name","specialty","department","room"].includes(k) ? 1 : -1) }; renderDoctors(); };
+document.body.addEventListener("click", e => { const el = e.target.closest("[data-doc]"); if (el) openDoctor(+el.dataset.doc); });
+document.querySelectorAll(".langs button").forEach(b => b.onclick = () => { L = b.dataset.l; try { localStorage.setItem("lang", L); } catch {} applyLang(); refresh(); });
+
+(async () => {
+  applyLang();
+  const deps = await api("/api/departments", new URLSearchParams());
+  $("#department").insertAdjacentHTML("beforeend", deps.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(""));
+  const specs = await api("/api/specialties", new URLSearchParams());
+  $("#specialty").insertAdjacentHTML("beforeend", specs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(""));
+  await refresh();
+  poll(); setInterval(poll, 10000);
+})();
+</script>
+</body>
+</html>
