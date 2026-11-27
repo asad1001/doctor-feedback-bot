@@ -1,0 +1,16 @@
+# Fly.io config for the Telegram bot (polling mode, no web port).
+#   fly launch --no-deploy --copy-config   (first time; keep this file)
+#   fly secrets set BOT_TOKEN=... BOT_USERNAME=bmtm_baholash_bot ANON_SALT=... DATABASE_URL=... ALERT_CHAT_ID=...
+#   fly deploy
+app = "bmtm-baholash-bot"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  TIMEZONE = "Asia/Tashkent"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

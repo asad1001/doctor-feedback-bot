@@ -1,0 +1,9 @@
+.env
+.git
+.venv
+data/
+banners/
+banners_bmtm/
+qr_codes/
+photos/bmtm_cut/
+__pycache__/
