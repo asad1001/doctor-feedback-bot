@@ -105,7 +105,33 @@ class SubmissionLock(Base):
     day: Mapped[date] = mapped_column(Date, primary_key=True, index=True)
 
 
-engine = create_async_engine(settings.database_url)
+def _make_engine():
+    """Create the engine. Handles hosted Postgres (Neon, Supabase) URLs that carry
+    ?sslmode=require, which asyncpg does not understand, and serverless hosts
+    (Vercel) where a connection pool must not outlive the request."""
+    import os
+
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.pool import NullPool
+
+    url = make_url(settings.database_url)
+    kwargs: dict = {}
+    if url.drivername.startswith("postgresql"):
+        query = dict(url.query)
+        sslmode = query.pop("sslmode", None)
+        query.pop("channel_binding", None)
+        url = url.set(query=query)
+        connect_args: dict = {"statement_cache_size": 0}  # works behind pgbouncer / Neon pooler
+        if sslmode and sslmode != "disable":
+            connect_args["ssl"] = "require"
+        kwargs["connect_args"] = connect_args
+        kwargs["pool_pre_ping"] = True
+        if os.getenv("VERCEL"):
+            kwargs["poolclass"] = NullPool
+    return create_async_engine(url, **kwargs)
+
+
+engine = _make_engine()
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 

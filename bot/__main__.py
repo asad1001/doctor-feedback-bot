@@ -1,7 +1,7 @@
 """Run the bot on your own computer:  python -m bot
 
-On a server (Render) you do NOT run this. The dashboard web service runs the
-bot through a webhook instead (see README, "Deploy to Render").
+On the bot server this runs as a systemd service (deploy/doctor-bot.service).
+The website on Vercel does not run the bot (see README, "Deploy").
 """
 
 import asyncio

@@ -162,40 +162,65 @@ the patient.
 2. In the group send `/chatid`. The bot replies with `ALERT_CHAT_ID=-100...`.
 3. Put that line into `.env` and restart the bot.
 
-## Deploy to Render (website + bot in one service)
+## Deploy: website on Vercel, bot on a small server
 
-On a server the bot does not use polling. The dashboard web service receives
-Telegram messages on `/telegram/webhook`, so **one Render Web Service runs
-both the website and the bot**. Render sets `RENDER_EXTERNAL_URL` itself; on
-startup the app tells Telegram to send updates there.
+The website (dashboard) and the bot run separately and share **one Postgres
+database**. SQLite cannot be shared between two machines, so use hosted
+Postgres such as [Neon](https://neon.tech) (free tier is enough to start).
 
-1. Render → New → Web Service → your GitHub repo (or use `render.yaml`).
-2. Build command: `pip install -r requirements.txt`
-3. Start command: `uvicorn dashboard.app:app --host 0.0.0.0 --port $PORT`
-4. Environment variables: `BOT_TOKEN`, `BOT_USERNAME`, `ANON_SALT`,
-   `DASHBOARD_USERS`, `DASHBOARD_SECRET`, optional `ALERT_CHAT_ID`,
-   and `PYTHON_VERSION=3.12.7`.
-5. Deploy. The log should show `Telegram webhook set to https://...`.
-6. **Stop `python -m bot` on your laptop.** While the server runs the bot,
-   `python -m bot` refuses to start (use `--force` only if you want to take
-   the bot back to your laptop; redeploy Render to give it back).
+```
+patients ─▶ Telegram ─▶ bot server (python -m bot, polling) ─┐
+                                                             ├─▶ Postgres (Neon)
+management ─▶ https://<project>.vercel.app (dashboard) ──────┘
+```
 
-Notes for the free plan:
-* The service sleeps after ~15 minutes without visitors. The first patient
-  message wakes it, so the first answer can take up to a minute; after that
-  it is instant.
-* The free disk is not permanent: on every redeploy/restart the SQLite file
-  goes back to the version in git, and new responses are lost. Fine for a
-  demo; for real use create a Render PostgreSQL database and set
-  `DATABASE_URL` to its connection string (Postgres is supported out of the box).
+### 1. Database
 
-## Going live (24/7)
+Create a Neon project and copy its connection string, e.g.
+`postgresql://user:pass@ep-xxx.eu-central-1.aws.neon.tech/neondb?sslmode=require`.
+Use it as-is for `DATABASE_URL` in both places below; the code converts it
+for asyncpg itself.
 
-On a laptop the bot stops when the laptop sleeps. For real use, rent a small
-Linux server (VPS, 1 GB RAM is enough; a provider in Uzbekistan is safest
-for data rules), copy the project there, and run `python -m bot` and
-`python -m dashboard` as services. Put the dashboard behind a domain with
-HTTPS (e.g. Caddy or Nginx) and set `https_only=True` in `dashboard/app.py`.
+### 2. Bot server (any VPS with Python 3.11+, 1 GB RAM is plenty)
+
+```bash
+sudo useradd -r -m bot
+sudo mkdir -p /opt/doctor-feedback-bot && sudo chown bot /opt/doctor-feedback-bot
+# copy the project to /opt/doctor-feedback-bot (git clone or unzip), then:
+cd /opt/doctor-feedback-bot
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env && nano .env        # BOT_TOKEN, BOT_USERNAME, ANON_SALT, DATABASE_URL, ALERT_CHAT_ID
+.venv/bin/python scripts/import_doctors.py doctors_bmtm.csv   # once: loads all doctors with their printed QR codes
+sudo cp deploy/doctor-bot.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now doctor-bot
+journalctl -u doctor-bot -f              # should say "Bot @... started (polling)"
+```
+
+The service starts with `--force`, so if the bot was previously running on
+Render (webhook), it takes the bot over. Shut the old Render service down.
+
+Do **not** run `scripts/seed_demo.py` against the real database.
+
+### 3. Website on Vercel
+
+1. Push the project to GitHub and import it in Vercel (Framework preset:
+   Other). `vercel.json` and `api/index.py` are already set up.
+2. Environment variables (Settings → Environment Variables):
+   `DATABASE_URL` (same as the bot), `ANON_SALT` (same as the bot),
+   `DASHBOARD_USERS`, `DASHBOARD_SECRET`, `TIMEZONE=Asia/Tashkent`.
+   **Do not set `BOT_TOKEN` or `PUBLIC_URL` on Vercel**, otherwise the website
+   would try to take the bot over with a webhook.
+3. Deploy and open the URL. Log in with a user from `DASHBOARD_USERS`.
+
+Doctor photos on the dashboard are served from `photos/` inside the
+deployment, so commit new photos and redeploy after adding doctors.
+
+### Adding or changing doctors later
+
+Edit `doctors_bmtm.csv` (keep the `code` column so printed QR codes keep
+working), then on the bot server run
+`.venv/bin/python scripts/import_doctors.py doctors_bmtm.csv`. New photos go
+into `photos/bmtm/` on both the server and the GitHub repo.
 
 ## The patient flow
 
@@ -265,7 +290,14 @@ dashboard/
   static/       dashboard pages
 scripts/
   import_doctors.py
+  build_bmtm_list.py       build doctors_bmtm.csv + photos from management's files
+  generate_bmtm_banners.py door banners (approved design) -> banners_bmtm/
+  render_banners.cjs       banners -> print PNGs (Node + Playwright)
   generate_qr.py
-  seed_demo.py  demo data
-doctors.example.csv
+  seed_demo.py  demo data (never on the real database)
+api/index.py    Vercel entry point
+vercel.json     Vercel config
+deploy/doctor-bot.service  systemd unit for the bot server
+doctors_bmtm.csv  all BMTM doctors with their permanent QR codes
+photos/bmtm/    doctor photos
 ```

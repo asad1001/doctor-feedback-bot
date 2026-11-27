@@ -33,7 +33,9 @@ log = logging.getLogger("dashboard")
 
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
+    global _db_ready
     await init_db()
+    _db_ready = True
     app_.state.bot = None
     url = public_url()
     if settings.bot_token and url:
@@ -53,18 +55,32 @@ async def lifespan(app_: FastAPI):
 
 
 app = FastAPI(title="Doctor feedback dashboard", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+
+_db_ready = False
+
+
+@app.middleware("http")
+async def ensure_db(request: Request, call_next):
+    # Serverless hosts (Vercel) may skip the startup hook, so make sure the
+    # tables exist before the first request is handled.
+    global _db_ready
+    if not _db_ready:
+        await init_db()
+        _db_ready = True
+    return await call_next(request)
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.dashboard_secret or (settings.anon_salt + ":dashboard"),
     max_age=12 * 3600,
     same_site="strict",
-    https_only=bool(os.getenv("RENDER") or os.getenv("HTTPS_ONLY")),  # secure cookies on https servers
+    https_only=bool(os.getenv("VERCEL") or os.getenv("RENDER") or os.getenv("HTTPS_ONLY")),  # secure cookies on https servers
 )
 
 
 @app.post(WEBHOOK_PATH, include_in_schema=False)
 async def telegram_webhook(request: Request):
-    bot = request.app.state.bot
+    bot = getattr(request.app.state, "bot", None)
     if bot is None or not hmac.compare_digest(
         request.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), webhook_secret()
     ):

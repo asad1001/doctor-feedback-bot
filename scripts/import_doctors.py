@@ -6,7 +6,7 @@ CSV columns (first row = header):
     last_name, first_name, patronymic, specialty_uz, specialty_ru, specialty_en,
     department, room, photo, code (optional)
 
-A doctor whose last_name + first_name + patronymic already exists is updated,
+A doctor with the same code, or the same last_name + first_name + patronymic, is updated,
 not duplicated, so you can re-run the import after editing the CSV.
 Each new doctor gets a random code that goes into their QR link.
 """
@@ -42,13 +42,20 @@ async def main(csv_path: str) -> None:
                 print(f"line {n}: skipped (last_name, first_name and specialty_uz are required)")
                 continue
             patronymic = clean(row.get("patronymic"))
-            doctor = await s.scalar(
-                select(Doctor).where(Doctor.last_name == last, Doctor.first_name == first, Doctor.patronymic.is_not_distinct_from(patronymic))
-            )
+            code = clean(row.get("code"))
+            # A known code wins: the printed QR stays tied to the same doctor even if the
+            # spelling of the name changes (e.g. after moving to the new alphabet).
+            doctor = await s.scalar(select(Doctor).where(Doctor.code == code)) if code else None
+            if doctor is None:
+                doctor = await s.scalar(
+                    select(Doctor).where(Doctor.last_name == last, Doctor.first_name == first, Doctor.patronymic.is_not_distinct_from(patronymic))
+                )
+            if doctor is not None:
+                doctor.last_name, doctor.first_name, doctor.patronymic = last, first, patronymic
             if doctor is None:
                 doctor = Doctor(last_name=last, first_name=first, patronymic=patronymic)
-                if clean(row.get("code")):  # optional: keep a code that is already printed on a banner
-                    doctor.code = clean(row.get("code"))
+                if code:  # optional: keep a code that is already printed on a banner
+                    doctor.code = code
                 s.add(doctor)
                 added += 1
             else:

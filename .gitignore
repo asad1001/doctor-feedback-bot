@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 venv/
 data/*.db
+qr_codes/*.png
+banners_bmtm/

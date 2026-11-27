@@ -1,0 +1,12 @@
+.env
+.venv/
+data/
+banners/
+banners_bmtm/
+qr_codes/
+assets/
+data_src/
+scripts/
+deploy/
+*.csv
+__pycache__/

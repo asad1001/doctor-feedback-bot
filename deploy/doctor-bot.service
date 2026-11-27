@@ -1,0 +1,21 @@
+# systemd unit for the Telegram bot (polling mode).
+# Install:
+#   sudo cp deploy/doctor-bot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now doctor-bot
+#   journalctl -u doctor-bot -f        # live logs
+[Unit]
+Description=BMTM doctor feedback Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bot
+WorkingDirectory=/opt/doctor-feedback-bot
+EnvironmentFile=/opt/doctor-feedback-bot/.env
+ExecStart=/opt/doctor-feedback-bot/.venv/bin/python -m bot --force
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
